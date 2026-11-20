@@ -66,7 +66,19 @@ jobs:
           grep -qxF 'android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
           MAIN="$(find app/src/main/java -name MainActivity.kt -print -quit)"
           if [ -n "$MAIN" ]; then
-            sed -i 's/import is\\.xyz\\.mpv\\.MPVLib/import dev.jdtech.mpv.MPVLib/' "$MAIN"
+            python3 - "$MAIN" <<'PYIMPORT'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          lines = path.read_text().splitlines()
+          matches = [i for i, line in enumerate(lines) if line.strip().startswith("import ") and "MPVLib" in line]
+          if not matches:
+              raise SystemExit("No se encontró el import de MPVLib en MainActivity.kt")
+          for i in matches:
+              lines[i] = "import dev.jdtech.mpv.MPVLib"
+          path.write_text("\\n".join(lines) + "\\n")
+          print("Import MPVLib corregido:", path)
+          PYIMPORT
           fi
           # libmpv 0.5.1 requires Android API 26; target TV Android 9 supports it.
           python3 - <<'PY'
