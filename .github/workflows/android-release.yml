@@ -65,6 +65,18 @@ jobs:
           if [ -n "$MAIN" ]; then
             sed -i 's/import is\.xyz\.mpv\.MPVLib/import `is`.xyz.mpv.MPVLib/' "$MAIN"
           fi
+          # libmpv 0.5.1 requires Android API 26; target TV Android 9 supports it.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for path in Path("app").glob("build.gradle*"):
+              source = path.read_text()
+              updated = re.sub(r'(\\bminSdk\\s*=\\s*)21\\b', r'\\g<1>26', source)
+              updated = re.sub(r'(\\bminSdkVersion\\s+|\\bminSdkVersion\\s*=\\s*)21\\b', r'\\g<1>26', updated)
+              if updated != source:
+                  path.write_text(updated)
+                  print(f"Updated minSdk to 26 in {path}")
+          PY
           if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
 
       - name: Build release APK
