@@ -71,8 +71,8 @@ jobs:
           import re
           for path in Path("app").glob("build.gradle*"):
               source = path.read_text()
-              updated = re.sub(r'(\\bminSdk\\s*=\\s*)21\\b', r'\\g<1>26', source)
-              updated = re.sub(r'(\\bminSdkVersion\\s+|\\bminSdkVersion\\s*=\\s*)21\\b', r'\\g<1>26', updated)
+              updated = re.sub(r'(\bminSdk\s*=\s*)21\b', r'\g<1>26', source)
+              updated = re.sub(r'(\bminSdkVersion\s+|\bminSdkVersion\s*=\s*)21\b', r'\g<1>26', updated)
               if updated != source:
                   path.write_text(updated)
                   print(f"Updated minSdk to 26 in {path}")
