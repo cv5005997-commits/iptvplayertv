@@ -1,0 +1,83 @@
+name: Android APK Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'IPTVPlayerTV (1).zip'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q "IPTVPlayerTV (1).zip" -d extracted
+          WRAPPER="$(find extracted -type f -name gradlew -print -quit)"
+          if [ -z "$WRAPPER" ]; then
+            echo "::error::No se encontró gradlew dentro del ZIP."
+            find extracted -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$WRAPPER")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Proyecto Android: $PROJECT_DIR"
+
+      - name: Apply build compatibility fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          mkdir -p .
+          touch gradle.properties
+          grep -qxF 'android.useAndroidX=true' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
+          grep -qxF 'android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
+          MAIN="$(find app/src/main/java -name MainActivity.kt -print -quit)"
+          if [ -n "$MAIN" ]; then
+            sed -i 's/import is\.xyz\.mpv\.MPVLib/import `is`.xyz.mpv.MPVLib/' "$MAIN"
+          fi
+          chmod +x ./gradlew
+
+      - name: Build release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          ./gradlew --no-daemon clean assembleRelease
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find "$PROJECT_DIR" -type f -path '*/build/outputs/apk/release/*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "::error::Gradle terminó sin generar un APK release."
+            exit 1
+          fi
+          mkdir -p release
+          cp "$APK" release/IPTVPlayerTV.apk
+          ls -lh release/IPTVPlayerTV.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: iptvplayertv-v1.0.${{ github.run_number }}
+          name: IPTVPlayerTV v1.0.${{ github.run_number }}
+          generate_release_notes: true
+          files: release/IPTVPlayerTV.apk
