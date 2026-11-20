@@ -31,14 +31,26 @@ jobs:
           set -euo pipefail
           unzip -q "IPTVPlayerTV (1).zip" -d extracted
           WRAPPER="$(find extracted -type f -name gradlew -print -quit)"
-          if [ -z "$WRAPPER" ]; then
-            echo "::error::No se encontró gradlew dentro del ZIP."
-            find extracted -maxdepth 4 -type f | head -100
-            exit 1
+          if [ -n "$WRAPPER" ]; then
+            PROJECT_DIR="$(dirname "$WRAPPER")"
+            echo "USE_WRAPPER=true" >> "$GITHUB_ENV"
+          else
+            SETTINGS="$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+            if [ -z "$SETTINGS" ]; then
+              echo "::error::El ZIP no contiene gradlew ni settings.gradle(.kts)."
+              find extracted -maxdepth 5 -type f | head -100
+              exit 1
+            fi
+            PROJECT_DIR="$(dirname "$SETTINGS")"
+            echo "USE_WRAPPER=false" >> "$GITHUB_ENV"
           fi
-          PROJECT_DIR="$(dirname "$WRAPPER")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Proyecto Android: $PROJECT_DIR"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
       - name: Apply build compatibility fixes
         shell: bash
@@ -53,14 +65,18 @@ jobs:
           if [ -n "$MAIN" ]; then
             sed -i 's/import is\.xyz\.mpv\.MPVLib/import `is`.xyz.mpv.MPVLib/' "$MAIN"
           fi
-          chmod +x ./gradlew
+          if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
 
       - name: Build release APK
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_DIR"
-          ./gradlew --no-daemon clean assembleRelease
+          if [ "$USE_WRAPPER" = "true" ]; then
+            ./gradlew --no-daemon clean assembleRelease
+          else
+            gradle --no-daemon clean assembleRelease
+          fi
 
       - name: Prepare APK
         shell: bash
