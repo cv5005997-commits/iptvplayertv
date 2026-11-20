@@ -1,4 +1,4 @@
-name: Build IPTVPlayerTV APK
+name: Build IPTVPlayerTV APK - run
 
 on:
   push:
